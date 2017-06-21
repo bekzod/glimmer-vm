@@ -112,6 +112,114 @@ abstract class RenderTest {
     this.assertStableNodes();
   }
 
+  @test "Unquoted attribute string values"() {
+    this.render("<img src={{src}}>", { src: 'image.png' });
+    this.assertHTML("<img src='image.png'>");
+    this.assertStableRerender();
+
+    this.rerender({ src: 'newimage.png' });
+    this.assertHTML("<img src='newimage.png'>");
+    this.assertStableNodes();
+
+    this.rerender({ src: '' });
+    this.assertHTML("<img src=''>");
+    this.assertStableNodes();
+
+    this.rerender({ src: 'image.png' });
+    this.assertHTML("<img src='image.png'>");
+    this.assertStableNodes();
+  }
+
+  @test "Unquoted img src attribute is not rendered when set to `null`"() {
+    this.render("<img src='{{src}}'>", { src: null });
+    this.assertHTML("<img>");
+    this.assertStableRerender();
+
+    this.rerender({ src: 'newimage.png' });
+    this.assertHTML("<img src='newimage.png'>");
+    this.assertStableNodes();
+
+    this.rerender({ src: '' });
+    this.assertHTML("<img src=''>");
+    this.assertStableNodes();
+
+    this.rerender({ src: null });
+    this.assertHTML("<img>");
+    this.assertStableNodes();
+  }
+
+  @test "Unquoted img src attribute is not rendered when set to `undefined`"() {
+    this.render("<img src='{{src}}'>", { src: undefined });
+    this.assertHTML("<img>");
+    this.assertStableRerender();
+
+    this.rerender({ src: 'newimage.png' });
+    this.assertHTML("<img src='newimage.png'>");
+    this.assertStableNodes();
+
+    this.rerender({ src: '' });
+    this.assertHTML("<img src=''>");
+    this.assertStableNodes();
+
+    this.rerender({ src: undefined });
+    this.assertHTML("<img>");
+    this.assertStableNodes();
+  }
+
+  @test "Unquoted a href attribute is not rendered when set to `null`"() {
+    this.render("<a href={{href}}></a>", { href: null });
+    this.assertHTML("<a></a>");
+    this.assertStableRerender();
+
+    this.rerender({ href: 'http://example.com' });
+    this.assertHTML("<a href='http://example.com'></a>");
+    this.assertStableNodes();
+
+    this.rerender({ href: '' });
+    this.assertHTML("<a href=''></a>");
+    this.assertStableNodes();
+
+    this.rerender({ href: null });
+    this.assertHTML("<a></a>");
+    this.assertStableNodes();
+  }
+
+  @test "Unquoted a href attribute is not rendered when set to `undefined`"() {
+    this.render("<a href={{href}}></a>", { href: undefined });
+    this.assertHTML("<a></a>");
+    this.assertStableRerender();
+
+    this.rerender({ href: 'http://example.com' });
+    this.assertHTML("<a href='http://example.com'></a>");
+    this.assertStableNodes();
+
+    this.rerender({ href: '' });
+    this.assertHTML("<a href=''></a>");
+    this.assertStableNodes();
+
+    this.rerender({ href: undefined });
+    this.assertHTML("<a></a>");
+    this.assertStableNodes();
+  }
+
+  @test "Attribute expression can be followed by another attribute"() {
+    this.render("<div foo='{{funstuff}}' name='Alice'></div>", { funstuff: "oh my" });
+    this.assertHTML("<div name='Alice' foo='oh my'></div>");
+    this.assertStableRerender();
+
+    this.rerender({ funstuff: 'oh boy' });
+    this.assertHTML("<div name='Alice' foo='oh boy'></div>");
+    this.assertStableNodes();
+
+    this.rerender({ funstuff: '' });
+    this.assertHTML("<div name='Alice' foo=''></div>");
+    this.assertStableNodes();
+
+    this.rerender({ funstuff: "oh my" });
+    this.assertHTML("<div name='Alice' foo='oh my'></div>");
+    this.assertStableNodes();
+  }
+
   @test "HTML comments"() {
     this.render('<div><!-- Just passing through --></div>');
     this.assertHTML('<div><!-- Just passing through --></div>');
