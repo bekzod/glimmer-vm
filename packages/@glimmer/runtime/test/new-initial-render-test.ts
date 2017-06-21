@@ -35,6 +35,42 @@ abstract class RenderTest {
     this.assertStableRerender();
   }
 
+  @test "HTML data attributes"() {
+    this.render("<div data-some-data='foo'>content</div>");
+    this.assertHTML("<div data-some-data='foo'>content</div>");
+    this.assertStableRerender();
+  }
+
+  @test "HTML checked attributes"() {
+    this.render("<input checked='checked'>");
+    this.assertHTML("<input checked='checked'>");
+    this.assertStableRerender();
+  }
+
+  @test "Nested HTML"() {
+    this.render("<div class='foo'><p><span id='bar' data-foo='bar'>hi!</span></p></div>&nbsp;More content");
+    this.assertHTML("<div class='foo'><p><span id='bar' data-foo='bar'>hi!</span></p></div>&nbsp;More content");
+    this.assertStableRerender();
+  }
+
+  @test "Supports quotes"() {
+    this.render("<div>\"This is a title,\" we\'re on a boat</div>");
+    this.assertHTML("<div>\"This is a title,\" we\'re on a boat</div>");
+    this.assertStableRerender();
+  }
+
+  @test "Supports backslashes"() {
+    this.render("<div>This is a backslash: \\</div>");
+    this.assertHTML("<div>This is a backslash: \\</div>");
+    this.assertStableRerender();
+  }
+
+  @test "Supports new lines"() {
+    this.render("<div>common\n\nbro</div>");
+    this.assertHTML("<div>common\n\nbro</div>");
+    this.assertStableRerender();
+  }
+
   @test "HTML tag with empty attribute"() {
     this.render("<div class=''>content</div>");
     this.assertHTML("<div class=''>content</div>");
@@ -226,9 +262,57 @@ abstract class RenderTest {
     this.assertStableRerender();
   }
 
+  @test "Curlies in HTML comments"() {
+    this.render('<div><!-- {{foo}} --></div>', { foo: 'foo' });
+    this.assertHTML('<div><!-- {{foo}} --></div>');
+    this.assertStableRerender();
+
+    this.rerender({ foo: 'bar' });
+    this.assertHTML('<div><!-- {{foo}} --></div>');
+    this.assertStableNodes();
+
+    this.rerender({ foo: '' });
+    this.assertHTML('<div><!-- {{foo}} --></div>');
+    this.assertStableNodes();
+
+    this.rerender({ foo: 'foo' });
+    this.assertHTML('<div><!-- {{foo}} --></div>');
+    this.assertStableNodes();
+  }
+
+  @test "Complex Curlies in HTML comments"() {
+    this.render('<div><!-- {{foo bar baz}} --></div>', { foo: 'foo' });
+    this.assertHTML('<div><!-- {{foo bar baz}} --></div>');
+    this.assertStableRerender();
+
+    this.rerender({ foo: 'bar' });
+    this.assertHTML('<div><!-- {{foo bar baz}} --></div>');
+    this.assertStableNodes();
+
+    this.rerender({ foo: '' });
+    this.assertHTML('<div><!-- {{foo bar baz}} --></div>');
+    this.assertStableNodes();
+
+    this.rerender({ foo: 'foo' });
+    this.assertHTML('<div><!-- {{foo bar baz}} --></div>');
+    this.assertStableNodes();
+  }
+
   @test "HTML comments with multi-line mustaches"() {
     this.render('<div><!-- {{#each foo as |bar|}}\n{{bar}}\n\n{{/each}} --></div>');
     this.assertHTML('<div><!-- {{#each foo as |bar|}}\n{{bar}}\n\n{{/each}} --></div>');
+    this.assertStableRerender();
+  }
+
+  @test "Top level comments"() {
+    this.render('<!-- {{foo}} -->');
+    this.assertHTML('<!-- {{foo}} -->');
+    this.assertStableRerender();
+  }
+
+  @test "Handlebars comments"() {
+    this.render('<div>{{! Better not break! }}content</div>');
+    this.assertHTML('<div>content</div>');
     this.assertStableRerender();
   }
 
@@ -247,6 +331,24 @@ abstract class RenderTest {
 
     this.rerender({ title: 'hello' });
     this.assertHTML('<div>hello<span>hello</span></div>');
+    this.assertStableNodes();
+  }
+
+  @test "Text curlies perform escaping"() {
+    this.render('<div>{{title}}<span>{{title}}</span></div>', { title: '<strong>hello</strong>' });
+    this.assertHTML('<div>&lt;strong&gt;hello&lt;/strong&gt;<span>&lt;strong>hello&lt;/strong&gt;</span></div>');
+    this.assertStableRerender();
+
+    this.rerender({ title: '<i>goodbye</i>' });
+    this.assertHTML('<div>&lt;i&gt;goodbye&lt;/i&gt;<span>&lt;i&gt;goodbye&lt;/i&gt;</span></div>');
+    this.assertStableNodes();
+
+    this.rerender({ title: '' });
+    this.assertHTML('<div><span></span></div>');
+    this.assertStableNodes();
+
+    this.rerender({ title: '<strong>hello</strong>' });
+    this.assertHTML('<div>&lt;strong&gt;hello&lt;/strong&gt;<span>&lt;strong>hello&lt;/strong&gt;</span></div>');
     this.assertStableNodes();
   }
 
@@ -284,6 +386,20 @@ abstract class RenderTest {
     let title = '<span>hello</span> <em>world</em>';
     this.render('<div>{{{title}}}</div>', { title });
     this.assertHTML('<div><span>hello</span> <em>world</em></div>');
+    this.assertStableRerender();
+  }
+
+  @test "Top level triple curlies"() {
+    let title = '<span>hello</span> <em>world</em>';
+    this.render('{{{title}}}', { title });
+    this.assertHTML('<span>hello</span> <em>world</em>');
+    this.assertStableRerender();
+  }
+
+  @test "Top level unescaped tr"() {
+    let title = '<tr><td>Yo</td></tr>';
+    this.render('<table>{{{title}}}</table>', { title });
+    this.assertHTML('<table><tbody><tr><td>Yo</td></tr></tbody></table>');
     this.assertStableRerender();
   }
 

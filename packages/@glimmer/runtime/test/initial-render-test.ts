@@ -89,19 +89,6 @@ module("[glimmer runtime] Initial render", tests => {
       }
     });
 
-    test("HTML tag with data- attribute", () => {
-      let template = compile("<div data-some-data='foo'>content</div>");
-      render(template, {});
-      equalTokens(root, '<div data-some-data="foo">content</div>');
-    });
-
-    test("<input> tag with 'checked' attribute", () => {
-      let template = compile("<input checked=\"checked\">");
-      render(template, {});
-
-      assertNodeProperty(root.firstChild, 'input', 'checked', true);
-    });
-
     function shouldBeVoid(tagName: string) {
       root.innerHTML = "";
       let html = "<" + tagName + " data-foo='bar'><p>hello</p>";
@@ -127,66 +114,6 @@ module("[glimmer runtime] Initial render", tests => {
       let voidElements = "area base br col command embed hr img input keygen link meta param source track wbr";
 
       voidElements.split(" ").forEach((tagName) => shouldBeVoid(tagName));
-    });
-
-    test("The compiler can handle nesting", () => {
-      let html = '<div class="foo"><p><span id="bar" data-foo="bar">hi!</span></p></div>&nbsp;More content';
-      let template = compile(html);
-      render(template, {});
-
-      equalTokens(root, html);
-    });
-
-    test("The compiler can handle quotes", () => {
-      compilesTo('<div>"This is a title," we\'re on a boat</div>');
-    });
-
-    test("The compiler can handle backslashes", () => {
-      compilesTo('<div>This is a backslash: \\</div>');
-    });
-
-    test("The compiler can handle newlines", () => {
-      compilesTo("<div>common\n\nbro</div>");
-    });
-
-    test("The compiler can handle comments", () => {
-      compilesTo("<div>{{! Better not break! }}content</div>", '<div>content</div>', {});
-    });
-
-    test("The compiler can handle HTML comments", () => {
-      compilesTo('<div><!-- Just passing through --></div>');
-    });
-
-    test("The compiler can handle HTML comments with mustaches in them", () => {
-      compilesTo('<div><!-- {{foo}} --></div>', '<div><!-- {{foo}} --></div>', { foo: 'bar' });
-    });
-
-    test("The compiler can handle HTML comments with complex mustaches in them", () => {
-      compilesTo('<div><!-- {{foo bar baz}} --></div>', '<div><!-- {{foo bar baz}} --></div>', { foo: 'bar' });
-    });
-
-    test("The compiler can handle HTML comments with multi-line mustaches in them", () => {
-      compilesTo('<div><!-- {{#each foo as |bar|}}\n{{bar}}\n\n{{/each}} --></div>');
-    });
-
-    test('The compiler can handle comments with no parent element', function() {
-      compilesTo('<!-- {{foo}} -->');
-    });
-
-    test("The compiler can handle simple handlebars", () => {
-      compilesTo('<div>{{title}}</div>', '<div>hello</div>', { title: 'hello' });
-    });
-
-    test("The compiler can handle escaping HTML", () => {
-      compilesTo('<div>{{title}}</div>', '<div>&lt;strong&gt;hello&lt;/strong&gt;</div>', { title: '<strong>hello</strong>' });
-    });
-
-    test("The compiler can handle unescaped HTML", () => {
-      compilesTo('<div>{{{title}}}</div>', '<div><strong>hello</strong></div>', { title: '<strong>hello</strong>' });
-    });
-
-    test("The compiler can handle top-level unescaped HTML", () => {
-      compilesTo('{{{html}}}', '<strong>hello</strong>', { html: '<strong>hello</strong>' });
     });
 
     test("The compiler can handle top-level unescaped tr", () => {
