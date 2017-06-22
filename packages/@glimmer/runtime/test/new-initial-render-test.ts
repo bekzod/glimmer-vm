@@ -1,8 +1,10 @@
 import { Opaque, Option, Dict } from "@glimmer/interfaces";
-import { Template, RenderResult } from "@glimmer/runtime";
-import { TestEnvironment, TestDynamicScope, RenderTest as BaseRenderTest, module, test, renderTemplate, strip } from "@glimmer/test-helpers";
+import { Template, RenderResult, SVG_NAMESPACE } from "@glimmer/runtime";
+import { TestEnvironment, TestDynamicScope, RenderTest as BaseRenderTest, module, test, renderTemplate, strip, assertNodeTagName } from "@glimmer/test-helpers";
 import { UpdatableReference } from "@glimmer/object-reference";
 import { expect } from "@glimmer/util";
+
+const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
 
 abstract class RenderTest extends BaseRenderTest {
   @test "HTML text content"() {
@@ -492,6 +494,112 @@ abstract class RenderTest extends BaseRenderTest {
     this.assertStableRerender();
   }
 
+  @test "Namespaced attribute"() {
+    this.render("<svg xlink:title='svg-title'>content</svg>");
+    this.assertHTML("<svg xlink:title='svg-title'>content</svg>");
+    this.assertStableRerender();
+  }
+
+  @test "<svg> tag with case-sensitive attribute"() {
+    this.render('<svg viewBox="0 0 0 0"></svg>');
+    this.assertHTML('<svg viewBox="0 0 0 0"></svg>');
+    let svg = this.element.firstChild;
+    if (assertNodeTagName(svg, 'svg')) {
+      this.assert.equal(svg.namespaceURI, SVG_NAMESPACE);
+      this.assert.equal(svg.getAttribute('viewBox'), '0 0 0 0');
+    }
+    this.assertStableRerender();
+  }
+
+  @test "nested element in the SVG namespace"() {
+    let d = 'M 0 0 L 100 100';
+    this.render(`<svg><path d="${d}"></path></svg>`);
+    this.assertHTML(`<svg><path d="${d}"></path></svg>`);
+
+    let svg = this.element.firstChild;
+
+    if (assertNodeTagName(svg, 'svg')) {
+      this.assert.equal(svg.namespaceURI, SVG_NAMESPACE);
+
+      let path = svg.firstChild;
+      if (assertNodeTagName(path, 'path')) {
+        this.assert.equal(path.namespaceURI, SVG_NAMESPACE,
+              "creates the path element with a namespace");
+        this.assert.equal(path.getAttribute('d'), d);
+      }
+    }
+
+    this.assertStableRerender();
+  }
+
+  @test "<foreignObject> tag has an SVG namespace"() {
+    this.render('<svg><foreignObject>Hi</foreignObject></svg>');
+    this.assertHTML('<svg><foreignObject>Hi</foreignObject></svg>');
+
+    let svg = this.element.firstChild;
+
+    if (assertNodeTagName(svg, 'svg')) {
+      this.assert.equal(svg.namespaceURI, SVG_NAMESPACE);
+
+      let foreignObject = svg.firstChild;
+      if (assertNodeTagName(foreignObject, 'foreignobject')) {
+        this.assert.equal(foreignObject.namespaceURI, SVG_NAMESPACE,
+            "creates the foreignObject element with a namespace");
+      }
+    }
+
+    this.assertStableRerender();
+  }
+
+  @test "Namespaced and non-namespaced elements as siblings"() {
+    this.render('<svg></svg><svg></svg><div></div>');
+    this.assertHTML('<svg></svg><svg></svg><div></div>');
+
+    this.assert.equal(this.element.childNodes[0].namespaceURI, SVG_NAMESPACE,
+          "creates the first svg element with a namespace");
+
+    this.assert.equal(this.element.childNodes[1].namespaceURI, SVG_NAMESPACE,
+          "creates the second svg element with a namespace");
+
+    this.assert.equal(this.element.childNodes[2].namespaceURI, XHTML_NAMESPACE,
+          "creates the div element without a namespace");
+
+    this.assertStableRerender();
+  }
+
+  @test "Namespaced and non-namespaced elements with nesting"() {
+    this.render('<div><svg></svg></div><div></div>');
+
+    let firstDiv = this.element.firstChild;
+    let secondDiv = this.element.lastChild;
+    let svg = firstDiv && firstDiv.firstChild;
+
+    this.assertHTML('<div><svg></svg></div><div></div>');
+
+    if (assertNodeTagName(firstDiv, 'div')) {
+      this.assert.equal(firstDiv.namespaceURI, XHTML_NAMESPACE,
+            "first div's namespace is xhtmlNamespace");
+    }
+
+    if (assertNodeTagName(svg, 'svg')) {
+      this.assert.equal(svg.namespaceURI, SVG_NAMESPACE,
+            "svg's namespace is svgNamespace");
+    }
+
+    if (assertNodeTagName(secondDiv, 'div')) {
+      this.assert.equal(secondDiv.namespaceURI, XHTML_NAMESPACE,
+            "last div's namespace is xhtmlNamespace");
+    }
+
+    this.assertStableRerender();
+  }
+
+  @test "Case-sensitive tag has capitalization preserved"() {
+    this.render('<svg><linearGradient id="gradient"></linearGradient></svg>');
+    this.assertHTML('<svg><linearGradient id="gradient"></linearGradient></svg>');
+    this.assertStableRerender();
+  }
+
   @test "Text curlies"() {
     this.render('<div>{{title}}<span>{{title}}</span></div>', { title: 'hello' });
     this.assertHTML('<div>hello<span>hello</span></div>');
@@ -830,4 +938,152 @@ class Rehydration extends RenderTest {
   }
 }
 
+class CompileErrorTests extends RenderTest {
+  protected element: HTMLDivElement;
+  protected template: Option<Template<Opaque>>;
+
+  constructor(env = new TestEnvironment()) {
+    super(env);
+    this.element = env.getDOM().createElement('div') as HTMLDivElement;
+  }
+
+  @test "A helpful error message is provided for unclosed elements"() {
+    this.assert.throws(() => {
+      this.compile('\n<div class="my-div" \n foo={{bar}}>\n<span>\n</span>\n');
+    }, /Unclosed element `div` \(on line 2\)\./);
+
+    this.assert.throws(() => {
+      this.compile('\n<div class="my-div">\n<span>\n');
+    }, /Unclosed element `span` \(on line 3\)\./);
+  }
+
+  @test "A helpful error message is provided for unmatched end tags"() {
+    this.assert.throws(() => {
+      this.compile("</p>");
+    }, /Closing tag `p` \(on line 1\) without an open tag\./);
+
+    this.assert.throws(() => {
+      this.compile("<em>{{ foo }}</em> \n {{ bar }}\n</div>");
+    }, /Closing tag `div` \(on line 3\) without an open tag\./);
+  }
+
+  @test "A helpful error message is provided for end tags for void elements"() {
+    this.assert.throws(() => {
+      this.compile("<input></input>");
+    }, /Invalid end tag `input` \(on line 1\) \(void elements cannot have end tags\)./);
+
+    this.assert.throws(() => {
+      this.compile("<div>\n  <input></input>\n</div>");
+    }, /Invalid end tag `input` \(on line 2\) \(void elements cannot have end tags\)./);
+
+    this.assert.throws(() => {
+      this.compile("\n\n</br>");
+    }, /Invalid end tag `br` \(on line 3\) \(void elements cannot have end tags\)./);
+  }
+
+  @test "A helpful error message is provided for end tags with attributes"() {
+    this.assert.throws(() => {
+      this.compile('<div>\nSomething\n\n</div foo="bar">');
+    }, /Invalid end tag: closing tag must not have attributes, in `div` \(on line 4\)\./);
+  }
+
+  @test "A helpful error message is provided for mismatched start/end tags"() {
+    this.assert.throws(() => {
+      this.compile("<div>\n<p>\nSomething\n\n</div>");
+    }, /Closing tag `div` \(on line 5\) did not match last open tag `p` \(on line 2\)\./);
+  }
+
+  @test "error line numbers include comment lines"() {
+    this.assert.throws(() => {
+      this.compile("<div>\n<p>\n{{! some comment}}\n\n</div>");
+    }, /Closing tag `div` \(on line 5\) did not match last open tag `p` \(on line 2\)\./);
+  }
+
+  @test "error line numbers include mustache only lines"() {
+    this.assert.throws(() => {
+      this.compile("<div>\n<p>\n{{someProp}}\n\n</div>");
+    }, /Closing tag `div` \(on line 5\) did not match last open tag `p` \(on line 2\)\./);
+  }
+
+  @test "error line numbers include block lines"() {
+    this.assert.throws(() => {
+      this.compile("<div>\n<p>\n{{#some-comment}}\n{{/some-comment}}\n</div>");
+    }, /Closing tag `div` \(on line 5\) did not match last open tag `p` \(on line 2\)\./);
+  }
+
+  @test "error line numbers include whitespace control mustaches"() {
+    this.assert.throws(() => {
+      this.compile("<div>\n<p>\n{{someProp~}}\n\n</div>{{some-comment}}");
+    }, /Closing tag `div` \(on line 5\) did not match last open tag `p` \(on line 2\)\./);
+  }
+
+  @test "error line numbers include multiple mustache lines"() {
+    this.assert.throws(() => {
+      this.compile("<div>\n<p>\n{{some-comment}}</div>{{some-comment}}");
+    }, /Closing tag `div` \(on line 3\) did not match last open tag `p` \(on line 2\)\./);
+  }
+
+  @test "Block params in HTML syntax - Throws exception if given zero parameters"() {
+    this.assert.throws(() => {
+      this.compile('<x-bar as ||>foo</x-bar>');
+    }, /Cannot use zero block parameters: 'as \|\|'/);
+
+    this.assert.throws(() => {
+      this.compile('<x-bar as | |>foo</x-bar>');
+    }, /Cannot use zero block parameters: 'as \| \|'/);
+  }
+
+  @test "Block params in HTML syntax - Throws an error on invalid block params syntax"() {
+    this.assert.throws(() => {
+      this.compile('<x-bar as |x y>{{x}},{{y}}</x-bar>');
+    }, /Invalid block parameters syntax: 'as |x y'/);
+
+    this.assert.throws(() => {
+      this.compile('<x-bar as |x| y>{{x}},{{y}}</x-bar>');
+    }, /Invalid block parameters syntax: 'as \|x\| y'/);
+
+    this.assert.throws(() => {
+      this.compile('<x-bar as |x| y|>{{x}},{{y}}</x-bar>');
+    }, /Invalid block parameters syntax: 'as \|x\| y\|'/);
+  }
+
+  @test "Block params in HTML syntax - Throws an error on invalid identifiers for params"() {
+    this.assert.throws(() => {
+      this.compile('<x-bar as |x foo.bar|></x-bar>');
+    }, /Invalid identifier for block parameters: 'foo\.bar' in 'as \|x foo\.bar|'/);
+
+    this.assert.throws(() => {
+      this.compile('<x-bar as |x "foo"|></x-bar>');
+    }, /Syntax error at line 1 col 17: " is not a valid character within attribute names/);
+
+    this.assert.throws(() => {
+      this.compile('<x-bar as |foo[bar]|></x-bar>');
+    }, /Invalid identifier for block parameters: 'foo\[bar\]' in 'as \|foo\[bar\]\|'/);
+  }
+
+  @test "Unquoted attribute with expression throws an exception"() {
+    this.assert.throws(() => this.compile('<img class=foo{{bar}}>'), expectedError(1));
+    this.assert.throws(() => this.compile('<img class={{foo}}{{bar}}>'), expectedError(1));
+    this.assert.throws(() => this.compile('<img \nclass={{foo}}bar>'), expectedError(2));
+    this.assert.throws(() => this.compile('<div \nclass\n=\n{{foo}}&amp;bar ></div>'), expectedError(4));
+
+    function expectedError(line: number) {
+      return new Error(
+        `An unquoted attribute value must be a string or a mustache, ` +
+        `preceeded by whitespace or a '=' character, and ` +
+        `followed by whitespace, a '>' character, or '/>' (on line ${line})`
+      );
+    }
+  }
+
+  renderTemplate(template: Template<Opaque>): RenderResult{
+    return renderTemplate(this.env, template, {
+      self: new UpdatableReference(this.context),
+      parentNode: this.element,
+      dynamicScope: new TestDynamicScope()
+    });
+  }
+}
+
 module("Rehydration Tests", Rehydration);
+module("Rendering Error Cases", CompileErrorTests);
