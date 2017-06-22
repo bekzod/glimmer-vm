@@ -1,6 +1,6 @@
 import { Opaque, Option, Dict } from "@glimmer/interfaces";
 import { Template, RenderResult } from "@glimmer/runtime";
-import { TestEnvironment, TestDynamicScope, RenderTest as BaseRenderTest, module, test, renderTemplate } from "@glimmer/test-helpers";
+import { TestEnvironment, TestDynamicScope, RenderTest as BaseRenderTest, module, test, renderTemplate, strip } from "@glimmer/test-helpers";
 import { UpdatableReference } from "@glimmer/object-reference";
 import { expect } from "@glimmer/util";
 
@@ -32,6 +32,42 @@ abstract class RenderTest extends BaseRenderTest {
   @test "HTML checked attributes"() {
     this.render("<input checked='checked'>");
     this.assertHTML("<input checked='checked'>");
+    this.assertStableRerender();
+  }
+
+  @test "HTML selected options"() {
+    this.render(strip`
+      <select>
+        <option>1</option>
+        <option selected>2</option>
+        <option>3</option>
+      </select>
+    `);
+    this.assertHTML(strip`
+      <select>
+        <option>1</option>
+        <option selected>2</option>
+        <option>3</option>
+      </select>
+    `);
+    this.assertStableRerender();
+  }
+
+  @test "HTML multi-select options"() {
+    this.render(strip`
+      <select multiple>
+        <option>1</option>
+        <option selected>2</option>
+        <option selected>3</option>
+      </select>
+    `);
+    this.assertHTML(strip`
+      <select multiple>
+        <option>1</option>
+        <option selected>2</option>
+        <option selected>3</option>
+      </select>
+    `);
     this.assertStableRerender();
   }
 
@@ -292,6 +328,110 @@ abstract class RenderTest extends BaseRenderTest {
     this.assertStableNodes();
   }
 
+  @test "Dynamic selected options"() {
+    this.render(strip`
+      <select>
+        <option>1</option>
+        <option selected={{selected}}>2</option>
+        <option>3</option>
+      </select>
+    `, { selected: true });
+    this.assertHTML(strip`
+      <select>
+        <option>1</option>
+        <option>2</option>
+        <option>3</option>
+      </select>
+    `);
+
+    let selectNode: any = this.element.childNodes[1];
+    this.assert.equal(selectNode.selectedIndex, 1);
+    this.assertStableRerender();
+
+    this.rerender({ selected: false });
+    this.assertHTML(strip`
+      <select>
+        <option>1</option>
+        <option>2</option>
+        <option>3</option>
+      </select>
+    `);
+    selectNode = this.element.childNodes[1];
+    this.assert.equal(selectNode.selectedIndex, 0);
+    this.assertStableNodes();
+
+    this.rerender({ selected: '' });
+    this.assertHTML(strip`
+      <select>
+        <option>1</option>
+        <option>2</option>
+        <option>3</option>
+      </select>
+    `);
+    selectNode = this.element.childNodes[1];
+    this.assert.equal(selectNode.selectedIndex, 0);
+    this.assertStableNodes();
+
+    this.rerender({ selected: true });
+    this.assertHTML(strip`
+      <select>
+        <option>1</option>
+        <option>2</option>
+        <option>3</option>
+      </select>
+    `);
+    selectNode = this.element.childNodes[1];
+    this.assert.equal(selectNode.selectedIndex, 1);
+    this.assertStableNodes();
+  }
+
+  @test "Dynamic multi-select"() {
+    this.render(strip`
+      <select multiple>
+        <option>0</option>
+        <option selected={{somethingTrue}}>1</option>
+        <option selected={{somethingTruthy}}>2</option>
+        <option selected={{somethingUndefined}}>3</option>
+        <option selected={{somethingNull}}>4</option>
+        <option selected={{somethingFalse}}>5</option>
+      </select>`,
+    {
+      somethingTrue: true,
+      somethingTruthy: 'is-true',
+      somethingUndefined: undefined,
+      somethingNull: null,
+      somethingFalse: false
+    });
+
+    let selectNode = this.element.firstElementChild;
+    this.assert.ok(selectNode, 'rendered select');
+    if (selectNode === null) {
+      return;
+    }
+    let options = selectNode.querySelectorAll('option');
+    let selected: HTMLOptionElement[] = [];
+    for (let i = 0; i < options.length; i++) {
+      let option = options[i];
+      if (option.selected) {
+        selected.push(option);
+      }
+    }
+
+    this.assertHTML(strip`
+      <select multiple="">
+        <option>0</option>
+        <option>1</option>
+        <option>2</option>
+        <option>3</option>
+        <option>4</option>
+        <option>5</option>
+      </select>`);
+
+    this.assert.equal(selected.length, 2, 'two options are selected');
+    this.assert.equal(selected[0].value, '1', 'first selected item is "1"');
+    this.assert.equal(selected[1].value, '2', 'second selected item is "2"');
+  }
+
   @test "HTML comments"() {
     this.render('<div><!-- Just passing through --></div>');
     this.assertHTML('<div><!-- Just passing through --></div>');
@@ -406,6 +546,24 @@ abstract class RenderTest extends BaseRenderTest {
     this.assertStableNodes();
   }
 
+  @test "Rerender respects whitespace"() {
+    this.render('Hello {{ foo }} ', { foo: 'bar'});
+    this.assertHTML('Hello bar ');
+    this.assertStableRerender();
+
+    this.rerender({ foo: 'baz' });
+    this.assertHTML('Hello baz ');
+    this.assertStableNodes();
+
+    this.rerender({ foo: '' });
+    this.assertHTML('Hello  ');
+    this.assertStableNodes();
+
+    this.rerender({ foo: 'bar'});
+    this.assertHTML('Hello bar ');
+    this.assertStableNodes();
+  }
+
   @test "Node curlies"() {
     let title = document.createElement('span');
     title.innerText = 'hello';
@@ -440,6 +598,14 @@ abstract class RenderTest extends BaseRenderTest {
     let title = '<span>hello</span> <em>world</em>';
     this.render('<div>{{{title}}}</div>', { title });
     this.assertHTML('<div><span>hello</span> <em>world</em></div>');
+    this.assertStableRerender();
+  }
+
+  @test "Triple curlie helpers"() {
+    this.registerHelper('unescaped', ([param]) => param);
+    this.registerHelper('escaped', ([param]) => param);
+    this.render('{{{unescaped "<strong>Yolo</strong>"}}} {{escaped "<strong>Yolo</strong>"}}');
+    this.assertHTML('<strong>Yolo</strong> &lt;strong&gt;Yolo&lt;/strong&gt;');
     this.assertStableRerender();
   }
 

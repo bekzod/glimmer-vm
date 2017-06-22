@@ -2,7 +2,6 @@ import {
   TestEnvironment,
   TestDynamicScope,
   normalizeInnerHTML,
-  getTextContent,
   equalTokens,
   assertNodeTagName,
 } from "@glimmer/test-helpers";
@@ -125,34 +124,6 @@ module("[glimmer runtime] Initial render", tests => {
       assertNodeTagName(row.firstChild, 'td');
     });
 
-    test("second render respects whitespace", assert => {
-      let template = compile('Hello {{ foo }} ');
-      render(template, {});
-
-      root = rootElement();
-      render(template, {});
-      assert.equal(root.childNodes.length, 3, 'fragment contains 3 text nodes');
-      assert.equal(getTextContent(root.childNodes[0]), 'Hello ', 'first text node ends with one space character');
-      assert.equal(getTextContent(root.childNodes[2]), ' ', 'last text node contains one space character');
-    });
-
-    test("Morphs are escaped correctly", () => {
-      env.registerHelper('testing-unescaped', function(params) {
-        return params[0];
-      });
-
-      env.registerHelper('testing-escaped', function(params) {
-        return params[0];
-      });
-
-      compilesTo('<div>{{{testing-unescaped "<span>hi</span>"}}}</div>', '<div><span>hi</span></div>');
-      compilesTo('<div>{{testing-escaped "<hi>"}}</div>', '<div>&lt;hi&gt;</div>');
-    });
-
-    test("Attributes can use computed values", () => {
-      compilesTo('<a href="{{url}}">linky</a>', '<a href="linky.html">linky</a>', { url: 'linky.html' });
-    });
-
     test("Mountain range of nesting", () => {
       let context = { foo: "FOO", bar: "BAR", baz: "BAZ", boo: "BOO", brew: "BREW", bat: "BAT", flute: "FLUTE", argh: "ARGH" };
       compilesTo('{{foo}}<span></span>', 'FOO<span></span>', context);
@@ -166,102 +137,6 @@ module("[glimmer runtime] Initial render", tests => {
                 'FOO<span></span>BAR<span>ARGH<span><span>BAZ</span></span></span>', context);
       compilesTo('{{foo}}<span>{{bar}}<a>{{baz}}<em>{{boo}}{{brew}}</em>{{bat}}</a></span><span><span>{{flute}}</span></span>{{argh}}',
                 'FOO<span>BAR<a>BAZ<em>BOOBREW</em>BAT</a></span><span><span>FLUTE</span></span>ARGH', context);
-    });
-
-    test("Static <div class> is preserved properly", () => {
-      compilesTo(`
-        <div class="hello world">1</div>
-        <div class="goodbye world">2</div>
-      `, `
-        <div class="hello world">1</div>
-        <div class="goodbye world">2</div>
-      `);
-    });
-
-    test("Static <option selected> is preserved properly", assert => {
-      let template = compile(`
-        <select>
-          <option>1</option>
-          <option selected>2</option>
-          <option>3</option>
-        </select>
-      `);
-      render(template, {});
-
-      let selectNode: any = root.childNodes[1];
-
-      assert.equal(selectNode.selectedIndex, 1, 'second item is selected');
-    });
-
-    test("Static <option selected> for multi-select is preserved properly", assert => {
-      let template = compile(`
-        <select multiple>
-          <option selected>1</option>
-          <option selected>2</option>
-          <option>3</option>
-        </select>
-      `);
-      render(template, {});
-
-      let selectNode: any = root.childNodes[1];
-
-      let options = Array.prototype.slice.call(selectNode.querySelectorAll('option'))
-        .filter((option: HTMLOptionElement) => option.getAttribute('selected') === '');
-
-      assert.equal(options.length, 2, 'two options are selected');
-    });
-
-    test("Dynamic <option selected> is preserved properly", assert => {
-      let template = compile(`
-        <select>
-          <option>1</option>
-          <option selected={{selected}}>2</option>
-          <option>3</option>
-        </select>
-      `);
-      render(template, { selected: true });
-
-      let selectNode: any = root.childNodes[1];
-
-      assert.equal(selectNode.selectedIndex, 1, 'second item is selected');
-    });
-
-    test("Dynamic <option selected> for multi-select is preserved properly", assert => {
-      let template = compile(`
-        <select multiple>
-          <option>0</option>
-          <option selected={{somethingTrue}}>1</option>
-          <option selected={{somethingTruthy}}>2</option>
-          <option selected={{somethingUndefined}}>3</option>
-          <option selected={{somethingNull}}>4</option>
-          <option selected={{somethingFalse}}>5</option>
-        </select>
-      `);
-
-      render(template, {
-        somethingTrue: true,
-        somethingTruthy: 'is-true',
-        somethingUndefined: undefined,
-        somethingNull: null,
-        somethingFalse: false
-      });
-
-      let selectNode = root.firstElementChild;
-      assert.ok(selectNode, 'rendered select');
-      if (selectNode === null) {
-        return;
-      }
-      let options = selectNode.querySelectorAll('option');
-      let selected: HTMLOptionElement[] = [];
-      for (let i = 0; i < options.length; i++) {
-        let option = options[i];
-        if (option.selected) {
-          selected.push(option);
-        }
-      }
-      assert.equal(selected.length, 2, 'two options are selected');
-      assert.equal(selected[0].value, '1', 'first selected item is "1"');
-      assert.equal(selected[1].value, '2', 'second selected item is "2"');
     });
   });
 
