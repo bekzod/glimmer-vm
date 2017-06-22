@@ -5,7 +5,6 @@ import {
   getTextContent,
   equalTokens,
   assertNodeTagName,
-  assertNodeProperty,
 } from "@glimmer/test-helpers";
 import { module, test } from './support';
 import { UpdatableReference } from '@glimmer/object-reference';
@@ -114,16 +113,6 @@ module("[glimmer runtime] Initial render", tests => {
       let voidElements = "area base br col command embed hr img input keygen link meta param source track wbr";
 
       voidElements.split(" ").forEach((tagName) => shouldBeVoid(tagName));
-    });
-
-    test("The compiler can handle top-level unescaped tr", () => {
-      let template = compile('{{{html}}}');
-      let context = { html: '<tr><td>Yo</td></tr>' };
-      let table = createElement('table');
-      root = table;
-      render(template, context);
-
-      assertNodeTagName(table.firstChild, 'tbody');
     });
 
     test("The compiler can handle top-level unescaped td inside tr contextualElement", () => {

@@ -36,5 +36,6 @@ export {
   testModule,
   template,
   RenderingTest,
-  SimpleRootReference
+  SimpleRootReference,
+  RenderTest
 } from './lib/abstract-test-case';
