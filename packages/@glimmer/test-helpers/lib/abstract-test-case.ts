@@ -3,12 +3,11 @@ import { PathReference, Tagged, RevisionTag, DirtyableTag, Tag } from '@glimmer/
 import { Template, RenderResult } from '@glimmer/runtime';
 import {
   TestEnvironment,
-  TestDynamicScope,
   UserHelper
 } from './environment';
 import { Opaque, dict, expect } from '@glimmer/util';
 import { assign, equalTokens } from './helpers';
-import { Simple, Option, Dict } from "@glimmer/interfaces";
+import { Option, Dict } from "@glimmer/interfaces";
 
 export function skip(_target: Object, _name: string, descriptor: PropertyDescriptor) {
   descriptor.value['skip'] = true;
@@ -69,18 +68,6 @@ class SimplePathReference implements PathReference<Opaque> {
     let parentValue = this.parent.value();
     return parentValue && parentValue[this.key];
   }
-}
-
-function isMarker(node: Node) {
-  if (node instanceof Comment && node.textContent === '') {
-    return true;
-  }
-
-  if (node instanceof Text && node.textContent === '') {
-    return true;
-  }
-
-  return false;
 }
 
 type IndividualSnapshot = 'up' | 'down' | Node;
@@ -270,128 +257,42 @@ function isServerMarker(node: Node) {
   return node.nodeType === Node.COMMENT_NODE && node.nodeValue!.charAt(0) === '%';
 }
 
-export class RenderingTest {
-  public template: Template<undefined>;
-  protected context: Option<VersionedObject> = null;
-  private result: Option<RenderResult> = null;
-  public snapshot: Node[];
-  public element: Option<Node>;
-  public assert: typeof QUnit.assert;
+export function test(_target: Object, _name: string, descriptor: PropertyDescriptor): PropertyDescriptor | void {
+  let testFunction = descriptor.value as Function;
+  descriptor.enumerable = true;
+  testFunction['isTest'] = true;
+}
 
-  constructor(protected env: TestEnvironment = new TestEnvironment(), template: string, private appendTo: Simple.Element) {
-    this.template = this.env.compile(template);
-    this.assert = QUnit.config.current.assert;
-  }
+export function module(name: string, klass: typeof RenderTest & Function): void {
+  QUnit.module(`[NEW] ${name}`);
 
-  teardown() {}
+  for (let prop in klass.prototype) {
+    const test = klass.prototype[prop];
 
-  render(context: Object) {
-    this.env.begin();
-    let appendTo = this.appendTo;
-    let rootObject = new VersionedObject(context);
-    let root = new SimpleRootReference(rootObject);
-
-    this.context = rootObject;
-
-    let templateIterator = this.template.render({ self: root, parentNode: appendTo, dynamicScope: new TestDynamicScope() });
-
-    let result;
-    do {
-      result = templateIterator.next();
-    } while (!result.done);
-
-    this.result = result.value;
-    this.env.commit();
-    this.element = document.getElementById('qunit-fixture')!.firstChild;
-  }
-
-  assertContent(expected: string, message?: string) {
-    let actual = document.getElementById('qunit-fixture')!.innerHTML;
-    QUnit.assert.equal(actual, expected, message || `expected content ${expected}`);
-  }
-
-  takeSnapshot() {
-    let snapshot: Node[] = this.snapshot = [];
-    let node = this.element!.firstChild;
-
-    while (node) {
-      if (!isMarker(node)) {
-        snapshot.push(node);
-      }
-
-      node = node.nextSibling;
+    if (isTestFunction(test)) {
+      QUnit.test(prop, assert => test.call(new klass(), assert));
     }
-
-    return snapshot;
-  }
-
-  assertStableRerender() {
-    this.takeSnapshot();
-    this.rerender();
-    this.assertInvariants();
-  }
-
-  rerender() {
-    this.result!.rerender();
-  }
-
-  assertInvariants(oldSnapshot?: Array<Node>, newSnapshot?: Array<Node>) {
-    oldSnapshot = oldSnapshot || this.snapshot;
-    newSnapshot = newSnapshot || this.takeSnapshot();
-
-    this.assert.strictEqual(newSnapshot.length, oldSnapshot.length, 'Same number of nodes');
-
-    for (let i = 0; i < oldSnapshot.length; i++) {
-      this.assertSameNode(newSnapshot[i], oldSnapshot[i]);
-    }
-  }
-
-  assertSameNode(actual: Node, expected: Node) {
-    this.assert.strictEqual(actual, expected, 'DOM node stability');
-  }
-
-  runTask(callback: () => void) {
-    callback();
-    this.env.begin();
-    this.result!.rerender();
-    this.env.commit();
   }
 }
 
-export function testModule(description?: string) {
-  return function(TestClass: typeof RenderingTest) {
-    let context: RenderingTest;
-
-    QUnit.module(`[Browser] ${description || TestClass.name}`, {
-      afterEach() {
-        context.teardown();
-      }
-    });
-
-    let keys = Object.getOwnPropertyNames(TestClass.prototype);
-    keys.forEach(key => {
-      if (key === 'constructor') return;
-      let value = Object.getOwnPropertyDescriptor(TestClass.prototype, key).value;
-      let isSkipped = value.skip;
-      if (typeof value === 'function' && !isSkipped) {
-        QUnit.test(key, (assert) => {
-          let env = new TestEnvironment();
-          context = new TestClass(env, value['template'], document.getElementById('qunit-fixture')!);
-          value.call(context, assert);
-        });
-      } else if (isSkipped) {
-        QUnit.skip(key, () => {});
-      }
-    });
-  };
+function isTestFunction(value: any): value is (this: RenderTest, assert: typeof QUnit.assert) => void {
+  return typeof value === 'function' && value.isTest;
 }
 
-export function template(t: string) {
-  return function template(_target: Object, _name: string, descriptor: PropertyDescriptor) {
-    if (typeof descriptor.value !== 'function') {
-      throw new Error("Can't decorator a non-function with the @template decorator");
-    }
+export function renderTemplate(env: TestEnvironment, template: Template<Opaque>, options: RenderOptions) {
+  env.begin();
 
-    descriptor.value['template'] = t;
-  };
+  let templateIterator = template.render(options);
+
+  let iteratorResult: IteratorResult<RenderResult>;
+
+  do {
+    iteratorResult = templateIterator.next();
+  } while (!iteratorResult.done);
+
+  let result = iteratorResult.value;
+
+  env.commit();
+
+  return result;
 }

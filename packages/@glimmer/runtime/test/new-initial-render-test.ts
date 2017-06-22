@@ -1,6 +1,6 @@
 import { Opaque, Option, Dict } from "@glimmer/interfaces";
-import { Template, RenderResult, RenderOptions, IteratorResult } from "@glimmer/runtime";
-import { TestEnvironment, TestDynamicScope, RenderTest as BaseRenderTest } from "@glimmer/test-helpers";
+import { Template, RenderResult } from "@glimmer/runtime";
+import { TestEnvironment, TestDynamicScope, RenderTest as BaseRenderTest, module, test, renderTemplate } from "@glimmer/test-helpers";
 import { UpdatableReference } from "@glimmer/object-reference";
 import { expect } from "@glimmer/util";
 
@@ -38,6 +38,54 @@ abstract class RenderTest extends BaseRenderTest {
   @test "Nested HTML"() {
     this.render("<div class='foo'><p><span id='bar' data-foo='bar'>hi!</span></p></div>&nbsp;More content");
     this.assertHTML("<div class='foo'><p><span id='bar' data-foo='bar'>hi!</span></p></div>&nbsp;More content");
+    this.assertStableRerender();
+  }
+
+  @test "Custom Elements"() {
+    this.render("<use-the-platform></use-the-platform>");
+    this.assertHTML("<use-the-platform></use-the-platform>");
+    this.assertStableRerender();
+  }
+
+  @test "Nested Custom Elements"() {
+    this.render("<use-the-platform><seriously-please data-foo='1'>Stuff <div>Here</div></seriously-please></use-the-platform>");
+    this.assertHTML("<use-the-platform><seriously-please data-foo='1'>Stuff <div>Here</div></seriously-please></use-the-platform>");
+    this.assertStableRerender();
+  }
+
+  @test "Moar nested Custom Elements"() {
+    this.render("<use-the-platform><seriously-please data-foo='1'><wheres-the-platform>Here</wheres-the-platform></seriously-please></use-the-platform>");
+    this.assertHTML("<use-the-platform><seriously-please data-foo='1'><wheres-the-platform>Here</wheres-the-platform></seriously-please></use-the-platform>");
+    this.assertStableRerender();
+  }
+
+  @test "Custom Elements with dynamic attributes"() {
+    this.render("<fake-thing><other-fake-thing data-src='extra-{{someDynamicBits}}-here' /></fake-thing>", { someDynamicBits: 'things' });
+    this.assertHTML("<fake-thing><other-fake-thing data-src='extra-things-here' /></fake-thing>");
+    this.assertStableRerender();
+  }
+
+  @test "Custom Elements with dynamic content"() {
+    this.render("<x-foo><x-bar>{{derp}}</x-bar></x-foo>", { derp: 'stuff' });
+    this.assertHTML("<x-foo><x-bar>stuff</x-bar></x-foo>");
+    this.assertStableRerender();
+  }
+
+  @test "Dynamic content within single custom element"() {
+    this.render("<x-foo>{{#if derp}}Content Here{{/if}}</x-foo>", { derp: 'stuff' });
+    this.assertHTML("<x-foo>Content Here</x-foo>");
+    this.assertStableRerender();
+
+    this.rerender({ derp: false });
+    this.assertHTML("<x-foo><!----></x-foo>");
+    this.assertStableRerender();
+
+    this.rerender({ derp: true });
+    this.assertHTML("<x-foo>Content Here</x-foo>");
+    this.assertStableRerender();
+
+    this.rerender({ derp: 'stuff' });
+    this.assertHTML("<x-foo>Content Here</x-foo>");
     this.assertStableRerender();
   }
 
@@ -322,6 +370,24 @@ abstract class RenderTest extends BaseRenderTest {
     this.assertStableNodes();
   }
 
+  @test "Path expressions"() {
+    this.render('<div>{{model.foo.bar}}<span>{{model.foo.bar}}</span></div>', { model: { foo: { bar: 'hello' } } });
+    this.assertHTML('<div>hello<span>hello</span></div>');
+    this.assertStableRerender();
+
+    this.rerender({ model: { foo: { bar: 'goodbye' } } });
+    this.assertHTML('<div>goodbye<span>goodbye</span></div>');
+    this.assertStableNodes();
+
+    this.rerender({ model: { foo: { bar: '' } } });
+    this.assertHTML('<div><span></span></div>');
+    this.assertStableNodes();
+
+    this.rerender({ model: { foo: { bar: 'hello' } } });
+    this.assertHTML('<div>hello<span>hello</span></div>');
+    this.assertStableNodes();
+  }
+
   @test "Text curlies perform escaping"() {
     this.render('<div>{{title}}<span>{{title}}</span></div>', { title: '<strong>hello</strong>' });
     this.assertHTML('<div>&lt;strong&gt;hello&lt;/strong&gt;<span>&lt;strong>hello&lt;/strong&gt;</span></div>');
@@ -599,43 +665,3 @@ class Rehydration extends RenderTest {
 }
 
 module("Rehydration Tests", Rehydration);
-
-function test(_target: Object, _name: string, descriptor: PropertyDescriptor): PropertyDescriptor | void {
-  let testFunction = descriptor.value as Function;
-  descriptor.enumerable = true;
-  testFunction['isTest'] = true;
-}
-
-function module(name: string, klass: typeof RenderTest & Function): void {
-  QUnit.module(`[NEW] ${name}`);
-
-  for (let prop in klass.prototype) {
-    const test = klass.prototype[prop];
-
-    if (isTestFunction(test)) {
-      QUnit.test(prop, assert => test.call(new klass(), assert));
-    }
-  }
-}
-
-function isTestFunction(value: any): value is (this: RenderTest, assert: typeof QUnit.assert) => void {
-  return typeof value === 'function' && value.isTest;
-}
-
-function renderTemplate(env: TestEnvironment, template: Template<Opaque>, options: RenderOptions) {
-  env.begin();
-
-  let templateIterator = template.render(options);
-
-  let iteratorResult: IteratorResult<RenderResult>;
-
-  do {
-    iteratorResult = templateIterator.next();
-  } while (!iteratorResult.done);
-
-  let result = iteratorResult.value;
-
-  env.commit();
-
-  return result;
-}
