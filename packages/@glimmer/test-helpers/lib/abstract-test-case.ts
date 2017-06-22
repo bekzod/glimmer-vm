@@ -6,7 +6,7 @@ import {
   UserHelper
 } from './environment';
 import { Opaque, dict, expect } from '@glimmer/util';
-import { assign, equalTokens } from './helpers';
+import { assign, equalTokens, normalizeInnerHTML } from './helpers';
 import { Option, Dict } from "@glimmer/interfaces";
 
 export function skip(_target: Object, _name: string, descriptor: PropertyDescriptor) {
@@ -85,6 +85,25 @@ export abstract class RenderTest {
 
   registerHelper(name: string, helper: UserHelper) {
     this.env.registerHelper(name, helper);
+  }
+
+  shouldBeVoid(tagName: string) {
+    this.element.innerHTML = "";
+    let html = "<" + tagName + " data-foo='bar'><p>hello</p>";
+    let template = this.compile(html);
+    this.renderTemplate(template);
+
+    let tag = '<' + tagName + ' data-foo="bar">';
+    let closing = '</' + tagName + '>';
+    let extra = "<p>hello</p>";
+    html = normalizeInnerHTML(this.element.innerHTML);
+
+    QUnit.assert.pushResult({
+      result: (html === tag + extra) || (html === tag + closing + extra),
+      actual: html,
+      expected: tag + closing + extra,
+      message: tagName + " should be a void element"
+    });
   }
 
   protected compile(template: string): Template<Opaque> {
