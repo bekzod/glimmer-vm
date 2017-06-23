@@ -765,7 +765,7 @@ abstract class RenderTest extends BaseRenderTest {
     this.assertStableRerender();
   }
   @test "The compiler can handle top-level unescaped td inside tr contextualElement"() {
-    this.render('<tr>{{{html}}}</tr>', { html: '<td>Yo</td>' });
+    this.render('{{{html}}}', { html: '<td>Yo</td>' });
     this.assertHTML('<tr><td>Yo</td></tr>');
     this.assertStableRerender();
   }

@@ -1,6 +1,6 @@
 import { TagWrapper } from '../../reference/lib/validators';
 import { PathReference, Tagged, RevisionTag, DirtyableTag, Tag } from '@glimmer/reference';
-import { Template, RenderResult } from '@glimmer/runtime';
+import { Template, RenderResult, RenderOptions } from '@glimmer/runtime';
 import {
   TestEnvironment,
   UserHelper
