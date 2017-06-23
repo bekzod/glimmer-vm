@@ -306,7 +306,7 @@ export function renderTemplate(env: TestEnvironment, template: Template<Opaque>,
   let iteratorResult: IteratorResult<RenderResult>;
 
   do {
-    iteratorResult = templateIterator.next();
+    iteratorResult = templateIterator.next() as IteratorResult<RenderResult>;
   } while (!iteratorResult.done);
 
   let result = iteratorResult.value;

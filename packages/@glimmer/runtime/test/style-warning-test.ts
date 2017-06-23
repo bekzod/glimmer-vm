@@ -27,7 +27,7 @@ function render<T>(template: Template<T>, self: any) {
   let templateIterator = template.render({ self: new UpdatableReference(self), parentNode: root, dynamicScope: new TestDynamicScope() });
   let iteratorResult: IteratorResult<RenderResult>;
   do {
-    iteratorResult = templateIterator.next();
+    iteratorResult = templateIterator.next() as IteratorResult<RenderResult>;
   } while (!iteratorResult.done);
 
   result = iteratorResult.value;
