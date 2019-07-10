@@ -147,15 +147,8 @@ export function combineSlice(slice: Slice<Tagged & LinkedListNode>): Tag {
 }
 
 export function pair(left: Tag, right: Tag): Tag {
-  let constLeft = isConstTag(left);
-  let constRight = isConstTag(right);
-
-  if (constLeft && constRight) {
+  if (isConstTag(left) || isConstTag(right)) {
     return CONSTANT_TAG;
-  } else if (constLeft) {
-    return left;
-  } else if (constRight) {
-    return right;
   } else {
     return TagsPair.create(left, right);
   }
